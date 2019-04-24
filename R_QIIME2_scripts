@@ -1,0 +1,45 @@
+###Function to Add noise and generate a positive control in RFC data###
+###A standard deviation of 1 will give you a fairly correlated feature, s.d. of 0.3 will give you a highly correlated feature, and s.d. of 3 will give you an uncorrelated feature.###
+
+add_noise <- function (x, sd=1) {
+  as.numeric(x) + rnorm(length(x), sd = sd)
+}
+
+###Function to remove features that are non-zero less than a specified proportion of the time###
+
+remove_rare <- function( table , cutoff_pro ) {
+  row2keep <- c()
+  cutoff <- ceiling( cutoff_pro * ncol(table) )  
+  for ( i in 1:nrow(table) ) {
+    row_nonzero <- length( which( table[ i , ]  > 0 ) ) 
+    if ( row_nonzero > cutoff ) {
+      row2keep <- c( row2keep , i)
+    }
+  }
+  return( table [ row2keep , , drop=F ])
+}
+
+
+###Merging feature tables/representative sequences data from QIIME2 into one feature table###
+
+#Follow the PennCHoP Microbiome Core's https://github.com/PennChopMicrobiomeProgram/TagSequencingPipeline/blob/master/qiime2/qiime2_pipeline.bash tag sequencing pipeline through all steps to denoising (line 132) for all separate sequencing runs 
+
+#Then merge the feature tables
+
+qiime feature-table merge --i-tables CM_Run1.2/DENOISE_DIR/R1.2_table.qza --i-tables CM_R2/DENOISE_DIR/R2_table.qza --o-merged-table MERGED_TABLES/R1.2_R2_table.qza
+qiime feature-table merge --i-tables CM_R3/DENOISE_DIR/R3_table.qza --i-tables MERGED_TABLES/R1.2_R2_table.qza --o-merged-table MERGED_TABLES/R1.2_R2_R3_table.qza
+qiime feature-table merge --i-tables CM_R4/DENOISE_DIR/R4_table.qza --i-tables MERGED_TABLES/R1.2_R2_R3_table.qza --o-merged-table MERGED_TABLES/R1.2_R2_R3_R4_table.qza
+
+## repeat this step, add new runs till you have all your samples in one huge table.qza file.
+
+## These are just to get things in a nice tsv file at the end to load into R
+qiime tools export MERGED_TABLES/R1.2_R2_R3_R4_table.qza --output-dir tables
+mv tables/feature-table.biom tables/R1.2_R2_R3_R4_feature-table.biom
+biom convert -i tables/R1.2_R2_R3_R4_feature-table.biom -o tables/R1.2_R2_R3_R4_feature-table.tsv --to-tsv
+
+# Merge the representative sequences data
+qiime feature-table merge-seqs --i-data CM_Run1.2/DENOISE_DIR/R1.2_repseqs.qza --i-data CM_R2/DENOISE_DIR/R2_repseqs.qza --o-merged-data MERGED_SEQ_DATA/R1.2_R2_repseqs.qza
+qiime feature-table merge-seqs --i-data MERGED_SEQ_DATA/R1.2_R2_repseqs.qza --i-data CM_R3/DENOISE_DIR/R3_repseqs.qza --o-merged-data MERGED_SEQ_DATA/R1.2_R2_R3_repseqs.qza
+qiime feature-table merge-seqs --i-data MERGED_SEQ_DATA/R1.2_R2_R3_repseqs.qza --i-data CM_R4/DENOISE_DIR/R4_repseqs.qza --o-merged-data MERGED_SEQ_DATA/R1.2_R2_R3_R4_repseqs.qza
+
+## repeat this step, add new runs till you have everything in one huge rep-seqs.qza file.
